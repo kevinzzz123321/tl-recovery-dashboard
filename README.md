@@ -12,6 +12,8 @@
 - 点击日成熟：横向看同一点击日的 `D0, D1, D2...`
 - 淘联核销窗口：按 `D0-D14` 展示，共 15 个自然日
 - 回补日强度：同一实际回补日的当天新增核销率，`Dk核销率 - D(k-1)核销率`
+- 预测D14核销率：当前 `Dk核销率 + 历史同成熟天数到D14的平均剩余新增核销率`
+- 未来回补日预测：按已知点击日叠加未来回补日对应的 `Dk-D(k-1)` 历史边际新增核销率
 
 第一版先不区分会场，统一看全局核销率。
 
@@ -32,5 +34,8 @@
 - `data_processed/recovery_day_strength.csv`：实际回补日强度排行
 - `data_processed/event_calendar.csv`：活动日历结构化表
 - `data_processed/main_site_calendar.csv`：5-6月主站重点活动日历，来自人工标注截图整理
+- `data_processed/click_day_maturity_forecast.csv`：点击日最终D14核销率预测
+- `data_processed/future_recovery_forecast.csv`：未来7天实际回补日强度预测
+- `data_processed/activity_impact_summary.csv`：活动期回补强度与平日强度对比
 - `dashboard/index.html`：本地可视化面板
 - `docs/index.html`：GitHub Pages 发布页面

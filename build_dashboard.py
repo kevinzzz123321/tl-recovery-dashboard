@@ -342,6 +342,313 @@ def add_event_features(strength: pd.DataFrame, event: pd.DataFrame) -> pd.DataFr
     return pd.DataFrame(rows)
 
 
+def active_events_on(date: pd.Timestamp, event: pd.DataFrame) -> pd.DataFrame:
+    date = pd.Timestamp(date)
+    return event[(event["start_date"] <= date) & (event["end_date"] >= date)].copy()
+
+
+def active_event_text(date: pd.Timestamp, event: pd.DataFrame) -> str:
+    active = active_events_on(date, event)
+    return "；".join(active["event_name"].tolist())
+
+
+def activity_adjustment_factor(date: pd.Timestamp, event: pd.DataFrame) -> tuple[float, str]:
+    """Light activity prior before we have enough post-activity samples.
+
+    This only adjusts redemption-rate recovery forecasts, not ROI.
+    """
+    active = active_events_on(date, event)
+    if active.empty:
+        return 1.0, ""
+
+    factor = 1.0
+    names = "；".join(active["event_name"].tolist())
+    if (active["event_level"] == "S级").any() or (active["event_type"] == "618节奏").any():
+        factor += 0.08
+    if (active["event_type"] == "推广激励").any():
+        factor += 0.06
+    if active["event_type"].isin(["营销活动", "主题活动"]).any():
+        factor += 0.03
+    if active["event_name"].str.contains("红包|超U|U享|天猫超秒", regex=True).any():
+        factor += 0.03
+    return min(factor, 1.20), names
+
+
+def confidence_from_sample(sample_count: float, medium: int = 4, high: int = 8) -> str:
+    if pd.isna(sample_count) or sample_count <= 0:
+        return "低"
+    if sample_count >= high:
+        return "高"
+    if sample_count >= medium:
+        return "中"
+    return "低"
+
+
+def build_lag_marginal_stats(detail: pd.DataFrame) -> pd.DataFrame:
+    if detail.empty:
+        return pd.DataFrame(
+            {
+                "lag_days": list(range(1, MAX_LAG + 1)),
+                "avg_marginal_pp": [0.0] * MAX_LAG,
+                "median_marginal_pp": [0.0] * MAX_LAG,
+                "sample_count": [0] * MAX_LAG,
+            }
+        )
+
+    stats = (
+        detail.groupby("lag_days", as_index=False)
+        .agg(
+            avg_marginal_pp=("marginal_lift_pp", "mean"),
+            median_marginal_pp=("marginal_lift_pp", "median"),
+            sample_count=("marginal_lift_pp", "count"),
+        )
+        .set_index("lag_days")
+        .reindex(range(1, MAX_LAG + 1))
+        .fillna({"avg_marginal_pp": 0.0, "median_marginal_pp": 0.0, "sample_count": 0})
+        .reset_index()
+    )
+    return stats
+
+
+def build_remaining_to_d14_stats(matrix: pd.DataFrame, detail: pd.DataFrame) -> pd.DataFrame:
+    lag_stats = build_lag_marginal_stats(detail).set_index("lag_days")
+    rows = []
+    if "D14_redemption_rate" not in matrix.columns:
+        mature = pd.DataFrame()
+    else:
+        mature = matrix[matrix["D14_redemption_rate"].notna()].copy()
+
+    for lag in range(0, MAX_LAG + 1):
+        if lag >= MAX_LAG:
+            rows.append(
+                {
+                    "lag_days": lag,
+                    "remaining_to_d14_pp": 0.0,
+                    "remaining_sample_count": int(len(mature)),
+                    "method": "已到D14窗口",
+                }
+            )
+            continue
+        current_col = f"D{lag}_redemption_rate"
+        future_lags = [future_lag for future_lag in range(lag + 1, MAX_LAG + 1)]
+        fallback_pp = float(
+            sum(max(0.0, lag_stats.loc[future_lag, "avg_marginal_pp"]) for future_lag in future_lags)
+        )
+        fallback_sample = int(lag_stats.loc[future_lags, "sample_count"].min()) if future_lags else len(mature)
+
+        sample = mature[[current_col, "D14_redemption_rate"]].dropna() if current_col in mature.columns else pd.DataFrame()
+        if len(sample) >= 3:
+            remaining = ((sample["D14_redemption_rate"] - sample[current_col]) * 100).clip(lower=0)
+            rows.append(
+                {
+                    "lag_days": lag,
+                    "remaining_to_d14_pp": float(remaining.mean()),
+                    "remaining_sample_count": int(len(remaining)),
+                    "method": "历史D14成熟样本",
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "lag_days": lag,
+                    "remaining_to_d14_pp": fallback_pp,
+                    "remaining_sample_count": fallback_sample,
+                    "method": "按各D天边际回补累加",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def classify_strength(value: float, strength: pd.DataFrame) -> str:
+    if strength.empty or pd.isna(value):
+        return "待观察"
+    series = strength["diagonal_marginal_avg_pp"].dropna()
+    if series.empty:
+        return "待观察"
+    if value >= series.quantile(0.90):
+        return "极强"
+    if value >= series.quantile(0.75):
+        return "强"
+    if value >= series.median():
+        return "正常偏强"
+    return "正常"
+
+
+def build_click_day_maturity_forecast(
+    matrix: pd.DataFrame, detail: pd.DataFrame, event: pd.DataFrame
+) -> pd.DataFrame:
+    remaining_stats = build_remaining_to_d14_stats(matrix, detail).set_index("lag_days")
+    rows = []
+    for _, row in matrix.sort_values("click_date", ascending=False).iterrows():
+        if pd.isna(row.get("latest_lag")) or pd.isna(row.get("latest_redemption_rate")):
+            continue
+        click_date = pd.Timestamp(row["click_date"])
+        latest_lag = int(row["latest_lag"])
+        current_rate = float(row["latest_redemption_rate"])
+        stat = remaining_stats.loc[latest_lag]
+        factor, events = activity_adjustment_factor(click_date, event)
+        raw_remaining_pp = 0.0 if latest_lag >= MAX_LAG else float(stat["remaining_to_d14_pp"])
+        adjusted_remaining_pp = raw_remaining_pp * factor if latest_lag < MAX_LAG else 0.0
+        forecast_rate = min(1.0, max(current_rate, current_rate + adjusted_remaining_pp / 100))
+        confidence = "高" if latest_lag >= MAX_LAG else confidence_from_sample(stat["remaining_sample_count"])
+        if latest_lag >= MAX_LAG:
+            reason = "已到D14核销窗口，基本视为成熟。"
+        else:
+            activity_note = events if events else "无重点活动"
+            reason = (
+                f"当前看到D{latest_lag}，历史同成熟天数后续平均新增约{raw_remaining_pp:.2f}pp；"
+                f"点击日活动：{activity_note}。"
+            )
+        rows.append(
+            {
+                "click_date": click_date,
+                "current_lag": latest_lag,
+                "current_lag_label": f"D{latest_lag}",
+                "current_redemption_rate": current_rate,
+                "forecast_d14_redemption_rate": forecast_rate,
+                "forecast_remaining_pp": adjusted_remaining_pp,
+                "historical_remaining_pp": raw_remaining_pp,
+                "activity_adjustment_factor": factor,
+                "remaining_sample_count": int(stat["remaining_sample_count"]),
+                "confidence": confidence,
+                "active_events": events,
+                "reason": reason,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_future_recovery_forecast(
+    matrix: pd.DataFrame,
+    detail: pd.DataFrame,
+    strength: pd.DataFrame,
+    event: pd.DataFrame,
+    latest_snapshot: pd.Timestamp,
+    horizon_days: int = 7,
+) -> pd.DataFrame:
+    lag_stats = build_lag_marginal_stats(detail).set_index("lag_days")
+    matrix_by_date = {
+        pd.Timestamp(row["click_date"]).normalize(): row
+        for _, row in matrix.dropna(subset=["click_date"]).iterrows()
+    }
+    rows = []
+    for step in range(1, horizon_days + 1):
+        recovery_date = pd.Timestamp(latest_snapshot) + pd.Timedelta(days=step)
+        factor, events = activity_adjustment_factor(recovery_date, event)
+        contributions = []
+        sample_counts = []
+        for lag in range(1, MAX_LAG + 1):
+            click_date = (recovery_date - pd.Timedelta(days=lag)).normalize()
+            if click_date not in matrix_by_date:
+                continue
+            if lag not in lag_stats.index:
+                continue
+            marginal_pp = max(0.0, float(lag_stats.loc[lag, "avg_marginal_pp"])) * factor
+            sample_count = int(lag_stats.loc[lag, "sample_count"])
+            sample_counts.append(sample_count)
+            contributions.append(
+                {
+                    "click_date": click_date,
+                    "lag_days": lag,
+                    "predicted_marginal_pp": marginal_pp,
+                    "sample_count": sample_count,
+                }
+            )
+
+        if contributions:
+            contribution_df = pd.DataFrame(contributions)
+            predicted_avg = float(contribution_df["predicted_marginal_pp"].mean())
+            predicted_sum = float(contribution_df["predicted_marginal_pp"].sum())
+            primary = contribution_df.sort_values("predicted_marginal_pp", ascending=False).head(4)
+            primary_text = "；".join(
+                f"{row.click_date.strftime('%m-%d')} D{int(row.lag_days)}" for _, row in primary.iterrows()
+            )
+            min_sample = min(sample_counts) if sample_counts else 0
+            confidence = confidence_from_sample(min(min_sample, len(contributions)), medium=3, high=6)
+        else:
+            predicted_avg = np.nan
+            predicted_sum = np.nan
+            primary_text = ""
+            confidence = "低"
+
+        activity_note = events if events else "无重点活动"
+        rows.append(
+            {
+                "recovery_date": recovery_date,
+                "predicted_avg_marginal_pp": predicted_avg,
+                "predicted_sum_marginal_pp": predicted_sum,
+                "predicted_strength_level": classify_strength(predicted_avg, strength),
+                "contributing_click_days": len(contributions),
+                "primary_click_days": primary_text,
+                "active_events": events,
+                "activity_adjustment_factor": factor,
+                "confidence": confidence,
+                "reason": f"按已知点击日的D天边际回补预测；活动：{activity_note}。",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_activity_impact_summary(strength: pd.DataFrame, event: pd.DataFrame) -> pd.DataFrame:
+    if strength.empty:
+        return pd.DataFrame()
+
+    daily = strength[["recovery_date", "diagonal_marginal_avg_pp"]].dropna().copy()
+    rows = []
+    for _, event_row in event.iterrows():
+        in_event = daily[
+            (daily["recovery_date"] >= event_row["start_date"])
+            & (daily["recovery_date"] <= event_row["end_date"])
+        ]
+        out_event = daily[
+            (daily["recovery_date"] < event_row["start_date"])
+            | (daily["recovery_date"] > event_row["end_date"])
+        ]
+        observed_days = int(len(in_event))
+        event_avg = float(in_event["diagonal_marginal_avg_pp"].mean()) if observed_days else np.nan
+        baseline_avg = float(out_event["diagonal_marginal_avg_pp"].mean()) if not out_event.empty else np.nan
+        uplift = event_avg - baseline_avg if pd.notna(event_avg) and pd.notna(baseline_avg) else np.nan
+        if observed_days >= 5:
+            confidence = "高"
+        elif observed_days >= 2:
+            confidence = "中"
+        elif observed_days == 1:
+            confidence = "低"
+        else:
+            confidence = "暂无"
+        rows.append(
+            {
+                "event_type": event_row["event_type"],
+                "event_name": event_row["event_name"],
+                "start_date": event_row["start_date"],
+                "end_date": event_row["end_date"],
+                "event_level": event_row["event_level"],
+                "event_avg_marginal_pp": event_avg,
+                "baseline_avg_marginal_pp": baseline_avg,
+                "uplift_pp": uplift,
+                "observed_days": observed_days,
+                "confidence": confidence,
+                "note": "用实际回补日平均新增核销率对比非该活动日期。",
+            }
+        )
+
+    result = pd.DataFrame(rows)
+    return result.sort_values(["observed_days", "uplift_pp"], ascending=[False, False])
+
+
+def build_prediction_tables(
+    matrix: pd.DataFrame,
+    detail: pd.DataFrame,
+    strength: pd.DataFrame,
+    event: pd.DataFrame,
+    latest_snapshot: pd.Timestamp,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    click_forecast = build_click_day_maturity_forecast(matrix, detail, event)
+    future_recovery = build_future_recovery_forecast(matrix, detail, strength, event, latest_snapshot)
+    activity_impact = build_activity_impact_summary(strength, event)
+    return click_forecast, future_recovery, activity_impact
+
+
 def build_event_bands(strength: pd.DataFrame, event: pd.DataFrame) -> pd.DataFrame:
     """Build non-overlapping activity bands for the timeline chart."""
     if strength.empty:
@@ -405,6 +712,9 @@ def save_processed(
     detail: pd.DataFrame,
     event: pd.DataFrame,
     main_site_calendar: pd.DataFrame,
+    click_forecast: pd.DataFrame,
+    future_recovery_forecast: pd.DataFrame,
+    activity_impact: pd.DataFrame,
 ) -> None:
     PROCESSED_DIR.mkdir(exist_ok=True)
     base.to_csv(PROCESSED_DIR / "base_snapshot_long.csv", index=False, encoding="utf-8-sig")
@@ -415,6 +725,11 @@ def save_processed(
     detail.to_csv(PROCESSED_DIR / "diagonal_recovery_detail.csv", index=False, encoding="utf-8-sig")
     event.to_csv(PROCESSED_DIR / "event_calendar.csv", index=False, encoding="utf-8-sig")
     main_site_calendar.to_csv(PROCESSED_DIR / "main_site_calendar.csv", index=False, encoding="utf-8-sig")
+    click_forecast.to_csv(PROCESSED_DIR / "click_day_maturity_forecast.csv", index=False, encoding="utf-8-sig")
+    future_recovery_forecast.to_csv(
+        PROCESSED_DIR / "future_recovery_forecast.csv", index=False, encoding="utf-8-sig"
+    )
+    activity_impact.to_csv(PROCESSED_DIR / "activity_impact_summary.csv", index=False, encoding="utf-8-sig")
 
 
 def build_dashboard_payload(
@@ -424,6 +739,9 @@ def build_dashboard_payload(
     detail: pd.DataFrame,
     event: pd.DataFrame,
     main_site_calendar: pd.DataFrame,
+    click_forecast: pd.DataFrame,
+    future_recovery_forecast: pd.DataFrame,
+    activity_impact: pd.DataFrame,
 ) -> dict[str, Any]:
     latest_snapshot = files["actual_snapshot_date"].max()
     latest_file = files.sort_values("actual_snapshot_date").iloc[-1]["source_file"]
@@ -462,6 +780,12 @@ def build_dashboard_payload(
     strongest_detail = detail[detail["recovery_date"] == strongest_date].copy()
     strongest_detail["share"] = strongest_detail["marginal_lift_pp"] / strongest_detail["marginal_lift_pp"].sum()
     strongest_detail = strongest_detail.sort_values("marginal_lift_pp", ascending=False).head(12)
+    forecast_plot = click_forecast.sort_values("click_date", ascending=False).head(12)
+    activity_impact_plot = (
+        activity_impact[activity_impact["observed_days"] > 0]
+        .sort_values(["uplift_pp", "observed_days"], ascending=[False, False])
+        .head(12)
+    )
 
     payload = {
         "meta": {
@@ -512,6 +836,48 @@ def build_dashboard_payload(
             ]
         ),
         "eventBands": records_for_json(event_bands[["start_date", "end_date", "start_label", "end_label", "label"]]),
+        "clickForecast": records_for_json(
+            forecast_plot[
+                [
+                    "click_date",
+                    "current_lag_label",
+                    "current_redemption_rate",
+                    "forecast_d14_redemption_rate",
+                    "forecast_remaining_pp",
+                    "confidence",
+                    "reason",
+                ]
+            ]
+        ),
+        "futureRecoveryForecast": records_for_json(
+            future_recovery_forecast[
+                [
+                    "recovery_date",
+                    "predicted_avg_marginal_pp",
+                    "predicted_sum_marginal_pp",
+                    "predicted_strength_level",
+                    "contributing_click_days",
+                    "primary_click_days",
+                    "active_events",
+                    "confidence",
+                ]
+            ]
+        ),
+        "activityImpact": records_for_json(
+            activity_impact_plot[
+                [
+                    "event_type",
+                    "event_name",
+                    "start_date",
+                    "end_date",
+                    "event_avg_marginal_pp",
+                    "baseline_avg_marginal_pp",
+                    "uplift_pp",
+                    "observed_days",
+                    "confidence",
+                ]
+            ]
+        ),
         "strongestDetail": records_for_json(
             strongest_detail[
                 [
@@ -599,6 +965,22 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       grid-template-columns: 1.45fr 1fr;
       gap: 16px;
       align-items: start;
+    }}
+    .prediction-grid {{
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }}
+    .prediction-card h3 {{
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 720;
+    }}
+    .prediction-card table td:last-child {{
+      white-space: normal;
+      min-width: 220px;
+      line-height: 1.45;
     }}
     section {{
       background: var(--panel);
@@ -706,7 +1088,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     .links a {{ color: var(--blue); text-decoration: none; margin-right: 14px; }}
     @media (max-width: 1100px) {{
       .kpis {{ grid-template-columns: repeat(2, minmax(150px, 1fr)); }}
-      .grid {{ grid-template-columns: 1fr; }}
+      .grid, .prediction-grid {{ grid-template-columns: 1fr; }}
       .calendar-wrap {{ min-width: 980px; }}
     }}
   </style>
@@ -727,6 +1109,25 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     <section>
       <h2>主站活动日历｜查活动窗口</h2>
       <div id="mainSiteCalendar"></div>
+    </section>
+
+    <section>
+      <h2>预测层｜提前判断未来回补</h2>
+      <div class="prediction-grid">
+        <div class="prediction-card">
+          <h3>点击日成熟预测｜最终会到多少</h3>
+          <table id="clickForecastTable"></table>
+        </div>
+        <div class="prediction-card">
+          <h3>未来7天回补预测｜哪天可能集中回补</h3>
+          <table id="futureForecastTable"></table>
+        </div>
+      </div>
+      <div class="prediction-card" style="margin-top:14px">
+        <h3>活动影响验证｜活动期是否放大回补</h3>
+        <table id="activityImpactTable"></table>
+      </div>
+      <div class="note">预测层使用核销率口径：点击日成熟预测看 D0-D14 横向曲线，未来回补预测看未来实际回补日的对角线新增核销率。第一版先不区分会场。</div>
     </section>
 
     <div class="grid">
@@ -764,6 +1165,9 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       <a href="{data_link_prefix}/diagonal_recovery_detail.csv">diagonal_recovery_detail.csv</a>
       <a href="{data_link_prefix}/event_calendar.csv">event_calendar.csv</a>
       <a href="{data_link_prefix}/main_site_calendar.csv">main_site_calendar.csv</a>
+      <a href="{data_link_prefix}/click_day_maturity_forecast.csv">click_day_maturity_forecast.csv</a>
+      <a href="{data_link_prefix}/future_recovery_forecast.csv">future_recovery_forecast.csv</a>
+      <a href="{data_link_prefix}/activity_impact_summary.csv">activity_impact_summary.csv</a>
     </section>
   </main>
 
@@ -927,14 +1331,54 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     }});
 
     function renderTable(id, headers, rows) {{
-      const html = [`<thead><tr>${{headers.map(h => `<th>${{h}}</th>`).join("")}}</tr></thead>`];
+      const html = [`<thead><tr>${{headers.map(h => `<th>${{escapeHtml(h)}}</th>`).join("")}}</tr></thead>`];
       html.push("<tbody>");
       rows.forEach(row => {{
-        html.push(`<tr>${{row.map(cell => `<td>${{cell}}</td>`).join("")}}</tr>`);
+        html.push(`<tr>${{row.map(cell => `<td>${{escapeHtml(cell)}}</td>`).join("")}}</tr>`);
       }});
       html.push("</tbody>");
       document.getElementById(id).innerHTML = html.join("");
     }}
+
+    renderTable("clickForecastTable",
+      ["点击日", "当前看到", "当前核销率", "预测D14", "预计再新增", "置信度", "判断理由"],
+      payload.clickForecast.map(r => [
+        shortDate(r.click_date),
+        r.current_lag_label,
+        fmtPct(r.current_redemption_rate),
+        fmtPct(r.forecast_d14_redemption_rate),
+        fmtPp(r.forecast_remaining_pp),
+        r.confidence,
+        r.reason
+      ])
+    );
+
+    renderTable("futureForecastTable",
+      ["回补日", "预测平均新增", "预测合计新增", "强度", "贡献点击日数", "主要来源", "活动", "置信度"],
+      payload.futureRecoveryForecast.map(r => [
+        shortDate(r.recovery_date),
+        fmtPp(r.predicted_avg_marginal_pp),
+        fmtPp(r.predicted_sum_marginal_pp),
+        r.predicted_strength_level,
+        r.contributing_click_days,
+        r.primary_click_days || "",
+        r.active_events || "无",
+        r.confidence
+      ])
+    );
+
+    renderTable("activityImpactTable",
+      ["活动", "窗口", "活动期平均新增", "平日平均新增", "提升", "样本天数", "可信度"],
+      payload.activityImpact.map(r => [
+        `${{r.event_type}}｜${{r.event_name}}`,
+        `${{shortDate(r.start_date)}} 至 ${{shortDate(r.end_date)}}`,
+        fmtPp(r.event_avg_marginal_pp),
+        fmtPp(r.baseline_avg_marginal_pp),
+        fmtPp(r.uplift_pp),
+        r.observed_days,
+        r.confidence
+      ])
+    );
 
     renderTable("detailTable",
       ["点击发生日", "回补第几天", "前日核销率", "当日核销率", "新增核销率", "占当天回补"],
@@ -993,10 +1437,36 @@ def build_dashboard() -> None:
     matrix = build_maturity_matrix(day_lag)
     strength, detail = build_recovery_strength(day_lag)
     strength = add_event_features(strength, event)
+    latest_snapshot = files["actual_snapshot_date"].max()
+    click_forecast, future_recovery_forecast, activity_impact = build_prediction_tables(
+        matrix, detail, strength, event, latest_snapshot
+    )
 
-    save_processed(base, files, day_lag, matrix, strength, detail, event, main_site_calendar)
+    save_processed(
+        base,
+        files,
+        day_lag,
+        matrix,
+        strength,
+        detail,
+        event,
+        main_site_calendar,
+        click_forecast,
+        future_recovery_forecast,
+        activity_impact,
+    )
 
-    payload = build_dashboard_payload(files, matrix, strength, detail, event, main_site_calendar)
+    payload = build_dashboard_payload(
+        files,
+        matrix,
+        strength,
+        detail,
+        event,
+        main_site_calendar,
+        click_forecast,
+        future_recovery_forecast,
+        activity_impact,
+    )
     write_dashboard_sites(payload)
 
     print("dashboard built")
