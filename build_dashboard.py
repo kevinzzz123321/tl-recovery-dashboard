@@ -388,7 +388,8 @@ def build_dashboard_payload(
             lag = int(lag_label[1:])
             value = row.get(f"D{lag}_redemption_rate")
             if pd.notna(value):
-                heatmap_data.append([xi, yi, round(float(value) * 100, 2)])
+                maturity_date = row["click_date"] + pd.Timedelta(days=lag)
+                heatmap_data.append([xi, yi, round(float(value) * 100, 2), maturity_date.strftime("%m.%d")])
 
     strength_plot = strength.copy()
     strength_plot = strength_plot[strength_plot["recovery_date"].notna()]
@@ -635,7 +636,10 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
 
     const heatmap = echarts.init(document.getElementById("heatmap"));
     heatmap.setOption({{
-      tooltip: {{ formatter: p => `${{payload.heatmap.y[p.value[1]]}} ${{payload.heatmap.x[p.value[0]]}}<br/>核销率 ${{p.value[2].toFixed(2)}}%` }},
+      tooltip: {{ formatter: p => {{
+        const maturityDate = p.value[3] ? `（${{p.value[3]}}）` : "";
+        return `${{payload.heatmap.y[p.value[1]]}} ${{payload.heatmap.x[p.value[0]]}}${{maturityDate}}<br/>核销率 ${{p.value[2].toFixed(2)}}%`;
+      }} }},
       grid: {{ left: 62, right: 20, top: 20, bottom: 88 }},
       xAxis: {{ type: "category", data: payload.heatmap.x, splitArea: {{ show: true }}, axisLabel: {{ margin: 14 }} }},
       yAxis: {{ type: "category", data: payload.heatmap.y, splitArea: {{ show: true }} }},
