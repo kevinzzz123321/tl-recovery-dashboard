@@ -115,6 +115,57 @@ def build_event_calendar() -> pd.DataFrame:
     return event
 
 
+def build_main_site_calendar() -> pd.DataFrame:
+    rows = [
+        ("主站节奏", "510周年庆", "2026-05-06", "2026-05-10", "S+", "510周年庆", "red"),
+        ("主站节奏", "520告白季", "2026-05-13", "2026-05-20", "S+", "520告白季", "red"),
+        ("主站节奏", "618抢先购", "2026-05-21", "2026-05-30", "S+", "618抢先购", "red"),
+        ("主站节奏", "618狂欢节", "2026-05-31", "2026-06-21", "S+", "618狂欢节", "red"),
+        ("超级红包", "超级红包", "2026-05-12", "2026-05-27", "重点", "红包资源窗口", "orange"),
+        ("聚好卖", "第一阶段", "2026-05-07", "2026-05-10", "重点", "聚好卖阶段", "green"),
+        ("聚好卖", "第二阶段", "2026-05-12", "2026-05-17", "重点", "聚好卖阶段", "green"),
+        ("聚好卖", "第三阶段", "2026-05-19", "2026-05-24", "重点", "聚好卖阶段", "green"),
+        ("聚好卖", "第四阶段", "2026-05-26", "2026-05-31", "重点", "聚好卖阶段", "green"),
+        ("聚好卖", "第一阶段", "2026-06-02", "2026-06-07", "重点", "聚好卖阶段", "green"),
+        ("聚好卖", "第二阶段", "2026-06-09", "2026-06-14", "重点", "聚好卖阶段", "green"),
+        ("聚好卖", "第三阶段", "2026-06-16", "2026-06-20", "重点", "聚好卖阶段", "green"),
+        ("聚好卖", "第四阶段", "2026-06-23", "2026-06-28", "重点", "聚好卖阶段", "green"),
+        ("精选库主推栏目", "第一期", "2026-05-07", "2026-05-10", "重点", "精选库主推", "pink"),
+        ("精选库主推栏目", "第二期", "2026-05-12", "2026-05-16", "重点", "精选库主推", "pink"),
+        ("精选库主推栏目", "第三期", "2026-05-19", "2026-05-23", "重点", "精选库主推", "pink"),
+        ("精选库主推栏目", "第四期", "2026-05-26", "2026-05-30", "重点", "精选库主推", "pink"),
+        ("精选库主推栏目", "第一期", "2026-06-02", "2026-06-07", "重点", "精选库主推", "pink"),
+        ("精选库主推栏目", "第二期", "2026-06-09", "2026-06-14", "重点", "精选库主推", "pink"),
+        ("精选库主推栏目", "第三期", "2026-06-16", "2026-06-20", "重点", "精选库主推", "pink"),
+        ("精选库主推栏目", "第四期", "2026-06-23", "2026-06-28", "重点", "精选库主推", "pink"),
+        ("赏金冲榜赛", "赏金冲榜赛", "2026-05-21", "2026-05-25", "重点", "冲榜赛", "orange"),
+        ("赏金冲榜赛", "赏金冲榜赛", "2026-05-31", "2026-06-04", "重点", "冲榜赛", "orange"),
+        ("赏金冲榜赛", "赏金冲榜赛", "2026-06-11", "2026-06-15", "重点", "冲榜赛", "orange"),
+        ("千万补贴", "快闪任务期", "2026-05-13", "2026-05-16", "重点", "千万补贴", "purple"),
+        ("千万补贴", "快闪权益期", "2026-05-17", "2026-05-20", "重点", "千万补贴", "purple"),
+        ("千万补贴", "大促版1", "2026-05-21", "2026-05-26", "重点", "千万补贴", "purple"),
+        ("千万补贴", "大促版2", "2026-05-27", "2026-06-01", "重点", "千万补贴", "purple"),
+        ("千万补贴", "快闪任务期2", "2026-06-02", "2026-06-05", "重点", "千万补贴", "purple"),
+        ("千万补贴", "快闪权益期2", "2026-06-06", "2026-06-09", "重点", "千万补贴", "purple"),
+        ("千万补贴", "快闪任务期3", "2026-06-10", "2026-06-12", "重点", "千万补贴", "purple"),
+        ("千万补贴", "快闪权益期3", "2026-06-13", "2026-06-15", "重点", "千万补贴", "purple"),
+        ("千万补贴", "大促版3", "2026-06-16", "2026-06-21", "重点", "千万补贴", "purple"),
+        ("佣金膨胀", "佣金膨胀", "2026-05-06", "2026-05-10", "重点", "佣金激励", "orange"),
+        ("佣金膨胀", "佣金膨胀", "2026-05-13", "2026-05-20", "重点", "佣金激励", "orange"),
+        ("佣金膨胀", "佣金膨胀", "2026-05-21", "2026-06-11", "重点", "佣金激励", "orange"),
+        ("特色会场", "特色会场", "2026-05-01", "2026-06-30", "常驻", "特色会场", "pink"),
+    ]
+    calendar = pd.DataFrame(
+        rows,
+        columns=["activity_group", "activity_name", "start_date", "end_date", "event_level", "benefit", "color_key"],
+    )
+    calendar["start_date"] = pd.to_datetime(calendar["start_date"])
+    calendar["end_date"] = pd.to_datetime(calendar["end_date"])
+    calendar["duration_days"] = (calendar["end_date"] - calendar["start_date"]).dt.days + 1
+    calendar["source"] = "用户截图重点整理"
+    return calendar
+
+
 def load_snapshot_base() -> tuple[pd.DataFrame, pd.DataFrame]:
     frames: list[pd.DataFrame] = []
     file_rows: list[dict[str, Any]] = []
@@ -353,6 +404,7 @@ def save_processed(
     strength: pd.DataFrame,
     detail: pd.DataFrame,
     event: pd.DataFrame,
+    main_site_calendar: pd.DataFrame,
 ) -> None:
     PROCESSED_DIR.mkdir(exist_ok=True)
     base.to_csv(PROCESSED_DIR / "base_snapshot_long.csv", index=False, encoding="utf-8-sig")
@@ -362,6 +414,7 @@ def save_processed(
     strength.to_csv(PROCESSED_DIR / "recovery_day_strength.csv", index=False, encoding="utf-8-sig")
     detail.to_csv(PROCESSED_DIR / "diagonal_recovery_detail.csv", index=False, encoding="utf-8-sig")
     event.to_csv(PROCESSED_DIR / "event_calendar.csv", index=False, encoding="utf-8-sig")
+    main_site_calendar.to_csv(PROCESSED_DIR / "main_site_calendar.csv", index=False, encoding="utf-8-sig")
 
 
 def build_dashboard_payload(
@@ -370,6 +423,7 @@ def build_dashboard_payload(
     strength: pd.DataFrame,
     detail: pd.DataFrame,
     event: pd.DataFrame,
+    main_site_calendar: pd.DataFrame,
 ) -> dict[str, Any]:
     latest_snapshot = files["actual_snapshot_date"].max()
     latest_file = files.sort_values("actual_snapshot_date").iloc[-1]["source_file"]
@@ -400,6 +454,9 @@ def build_dashboard_payload(
     event_plot["start_label"] = event_plot["start_date"].dt.strftime("%m-%d")
     event_plot["end_label"] = event_plot["end_date"].dt.strftime("%m-%d")
     event_bands = build_event_bands(strength, event)
+    main_site_plot = main_site_calendar.copy()
+    main_site_plot["start_label"] = main_site_plot["start_date"].dt.strftime("%m.%d")
+    main_site_plot["end_label"] = main_site_plot["end_date"].dt.strftime("%m.%d")
 
     strongest_date = strongest["recovery_date"]
     strongest_detail = detail[detail["recovery_date"] == strongest_date].copy()
@@ -438,6 +495,21 @@ def build_dashboard_payload(
         ),
         "events": records_for_json(
             event_plot[["event_type", "event_name", "start_date", "end_date", "start_label", "end_label", "event_level"]]
+        ),
+        "mainSiteCalendar": records_for_json(
+            main_site_plot[
+                [
+                    "activity_group",
+                    "activity_name",
+                    "start_date",
+                    "end_date",
+                    "start_label",
+                    "end_label",
+                    "event_level",
+                    "benefit",
+                    "color_key",
+                ]
+            ]
         ),
         "eventBands": records_for_json(event_bands[["start_date", "end_date", "start_label", "end_label", "label"]]),
         "strongestDetail": records_for_json(
@@ -542,6 +614,75 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     }}
     .chart {{ width: 100%; height: 420px; }}
     #heatmap {{ height: 600px; }}
+    #mainSiteCalendar {{ overflow-x: auto; padding-bottom: 2px; }}
+    .calendar-wrap {{ min-width: 1160px; }}
+    .calendar-axis,
+    .calendar-row {{
+      display: grid;
+      grid-template-columns: var(--calendar-cols);
+      gap: 4px;
+      align-items: stretch;
+    }}
+    .calendar-axis {{
+      min-height: 32px;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 720;
+      border-bottom: 1px solid #edf0f5;
+      margin-bottom: 4px;
+    }}
+    .axis-label {{
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      color: var(--muted);
+    }}
+    .axis-period {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-left: 1px solid #edf0f5;
+      color: #344054;
+    }}
+    .calendar-row {{
+      min-height: 54px;
+      border-bottom: 1px solid #edf0f5;
+      padding: 6px 0;
+      background-image: linear-gradient(to right, transparent 0, transparent 132px, rgba(16,24,40,.06) 132px, rgba(16,24,40,.06) 133px, transparent 133px);
+    }}
+    .lane-label {{
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      border-radius: 6px;
+      background: #fff7ed;
+      color: #9a3412;
+      border: 1px solid #fed7aa;
+      font-size: 13px;
+      font-weight: 760;
+    }}
+    .calendar-bar {{
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 36px;
+      padding: 5px 8px;
+      border-radius: 7px;
+      color: #fff;
+      line-height: 1.2;
+      box-shadow: 0 1px 2px rgba(16,24,40,.12);
+      overflow: hidden;
+    }}
+    .calendar-bar .range {{ font-size: 12px; font-weight: 780; white-space: nowrap; }}
+    .calendar-bar .name {{ margin-top: 2px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+    .calendar-bar.red {{ background: #ef4444; }}
+    .calendar-bar.orange {{ background: #f97316; }}
+    .calendar-bar.green {{ background: #22a354; }}
+    .calendar-bar.pink {{ background: #f43f7f; }}
+    .calendar-bar.purple {{ background: #8b5cf6; }}
     table {{
       width: 100%;
       border-collapse: collapse;
@@ -566,6 +707,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     @media (max-width: 1100px) {{
       .kpis {{ grid-template-columns: repeat(2, minmax(150px, 1fr)); }}
       .grid {{ grid-template-columns: 1fr; }}
+      .calendar-wrap {{ min-width: 980px; }}
     }}
   </style>
 </head>
@@ -582,6 +724,12 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       <div class="kpi"><div class="label">近7日均值</div><div class="value" id="recentAvg"></div></div>
       <div class="kpi"><div class="label">CSV数量</div><div class="value" id="sourceCount"></div></div>
     </div>
+
+    <section>
+      <h2>主站活动日历（5-6月重点版）</h2>
+      <div id="mainSiteCalendar"></div>
+      <div class="note">按你标注的重点活动整理。这里是同事查阅用的结构化排期，后续可继续和回补日强度、点击日成熟曲线联动。</div>
+    </section>
 
     <div class="grid">
       <section>
@@ -619,6 +767,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       <a href="{data_link_prefix}/recovery_day_strength.csv">recovery_day_strength.csv</a>
       <a href="{data_link_prefix}/diagonal_recovery_detail.csv">diagonal_recovery_detail.csv</a>
       <a href="{data_link_prefix}/event_calendar.csv">event_calendar.csv</a>
+      <a href="{data_link_prefix}/main_site_calendar.csv">main_site_calendar.csv</a>
     </section>
   </main>
 
@@ -633,6 +782,68 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     document.getElementById("strongestAvg").textContent = fmtPp(payload.meta.strongest_recovery_avg_pp);
     document.getElementById("recentAvg").textContent = fmtPp(payload.meta.recent_7d_avg_pp);
     document.getElementById("sourceCount").textContent = payload.meta.source_count;
+
+    const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => {{
+      if (char === "&") return "&amp;";
+      if (char === "<") return "&lt;";
+      if (char === ">") return "&gt;";
+      if (char === '"') return "&quot;";
+      return "&#39;";
+    }});
+    const dayMs = 24 * 60 * 60 * 1000;
+    const calendarStartUtc = Date.UTC(2026, 4, 1);
+    const calendarEndUtc = Date.UTC(2026, 5, 30);
+    const totalCalendarDays = Math.round((calendarEndUtc - calendarStartUtc) / dayMs) + 1;
+    const calendarCols = `132px repeat(${{totalCalendarDays}}, minmax(12px, 1fr))`;
+    const mainSitePeriods = [
+      {{ label: "5.1-5.10", start: "2026-05-01", end: "2026-05-10" }},
+      {{ label: "5.11-5.20", start: "2026-05-11", end: "2026-05-20" }},
+      {{ label: "5.21-5.30", start: "2026-05-21", end: "2026-05-30" }},
+      {{ label: "5.31-6.9", start: "2026-05-31", end: "2026-06-09" }},
+      {{ label: "6.10-6.19", start: "2026-06-10", end: "2026-06-19" }},
+      {{ label: "6.20-6.30", start: "2026-06-20", end: "2026-06-30" }}
+    ];
+    const dateIndex = dateStr => {{
+      const [year, month, day] = dateStr.split("-").map(Number);
+      return Math.round((Date.UTC(year, month - 1, day) - calendarStartUtc) / dayMs);
+    }};
+    const compactDate = dateStr => {{
+      const [, month, day] = dateStr.split("-").map(Number);
+      return `${{month}}.${{day}}`;
+    }};
+    const compactRange = row => `${{compactDate(row.start_date)}}-${{compactDate(row.end_date)}}`;
+
+    function renderMainSiteCalendar() {{
+      const groups = [...new Set(payload.mainSiteCalendar.map(row => row.activity_group))];
+      const html = [`<div class="calendar-wrap" style="--calendar-cols:${{calendarCols}}">`];
+      html.push(`<div class="calendar-axis" style="--calendar-cols:${{calendarCols}}"><div class="axis-label">活动类型</div>`);
+      mainSitePeriods.forEach(period => {{
+        const start = dateIndex(period.start) + 2;
+        const end = dateIndex(period.end) + 3;
+        html.push(`<div class="axis-period" style="grid-column:${{start}} / ${{end}}">${{escapeHtml(period.label)}}</div>`);
+      }});
+      html.push("</div>");
+
+      groups.forEach(group => {{
+        html.push(`<div class="calendar-row" style="--calendar-cols:${{calendarCols}}"><div class="lane-label">${{escapeHtml(group)}}</div>`);
+        payload.mainSiteCalendar
+          .filter(row => row.activity_group === group)
+          .forEach(row => {{
+            const start = dateIndex(row.start_date) + 2;
+            const end = dateIndex(row.end_date) + 3;
+            const range = compactRange(row);
+            const title = `${{row.activity_group}}｜${{row.activity_name}}｜${{range}}｜${{row.event_level}}｜${{row.benefit}}`;
+            html.push(
+              `<div class="calendar-bar ${{escapeHtml(row.color_key)}}" title="${{escapeHtml(title)}}" style="grid-column:${{start}} / ${{end}}">` +
+              `<div class="range">${{escapeHtml(range)}}</div><div class="name">${{escapeHtml(row.event_level)}} ${{escapeHtml(row.activity_name)}}</div></div>`
+            );
+          }});
+        html.push("</div>");
+      }});
+      html.push("</div>");
+      document.getElementById("mainSiteCalendar").innerHTML = html.join("");
+    }}
+    renderMainSiteCalendar();
 
     const heatmap = echarts.init(document.getElementById("heatmap"));
     heatmap.setOption({{
@@ -780,14 +991,15 @@ def write_dashboard_sites(payload: dict[str, Any]) -> None:
 def build_dashboard() -> None:
     base, files = load_snapshot_base()
     event = build_event_calendar()
+    main_site_calendar = build_main_site_calendar()
     day_lag = build_day_lag_summary(base)
     matrix = build_maturity_matrix(day_lag)
     strength, detail = build_recovery_strength(day_lag)
     strength = add_event_features(strength, event)
 
-    save_processed(base, files, day_lag, matrix, strength, detail, event)
+    save_processed(base, files, day_lag, matrix, strength, detail, event, main_site_calendar)
 
-    payload = build_dashboard_payload(files, matrix, strength, detail, event)
+    payload = build_dashboard_payload(files, matrix, strength, detail, event, main_site_calendar)
     write_dashboard_sites(payload)
 
     print("dashboard built")

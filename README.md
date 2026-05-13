@@ -31,4 +31,6 @@
 - `data_processed/diagonal_recovery_detail.csv`：对角线边际回补明细
 - `data_processed/recovery_day_strength.csv`：实际回补日强度排行
 - `data_processed/event_calendar.csv`：活动日历结构化表
+- `data_processed/main_site_calendar.csv`：5-6月主站重点活动日历，来自人工标注截图整理
 - `dashboard/index.html`：本地可视化面板
+- `docs/index.html`：GitHub Pages 发布页面
