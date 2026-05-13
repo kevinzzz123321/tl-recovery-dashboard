@@ -740,7 +740,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
           <div id="strengthBar" class="chart"></div>
         </section>
         <section>
-          <h2>最强回补日来源</h2>
+          <h2>最强回补日｜哪些点击日贡献最多</h2>
           <table id="detailTable"></table>
         </section>
       </div>
@@ -937,7 +937,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     }}
 
     renderTable("detailTable",
-      ["点击日", "成熟天数", "前一天核销率", "当天核销率", "当天新增", "贡献占比"],
+      ["点击发生日", "回补第几天", "前日核销率", "当日核销率", "新增核销率", "占当天回补"],
       payload.strongestDetail.map(r => [
         shortDate(r.click_date),
         "D" + r.lag_days,
