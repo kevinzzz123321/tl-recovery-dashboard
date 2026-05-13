@@ -592,7 +592,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       padding: 14px 16px;
       min-height: 82px;
     }}
-    .kpi .label {{ color: var(--muted); font-size: 12px; margin-bottom: 8px; }}
+    .kpi .label {{ color: #475467; font-size: 13px; font-weight: 650; margin-bottom: 8px; }}
     .kpi .value {{ font-size: 24px; font-weight: 760; white-space: nowrap; }}
     .grid {{
       display: grid;
@@ -714,28 +714,25 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
 <body>
   <header>
     <h1>淘联红包核销率回补跟踪</h1>
-    <div class="sub">实际数据日 = 文件名日期 + 1天；点击日 = 表内日期；第一版不区分会场。</div>
   </header>
   <main>
     <div class="kpis">
-      <div class="kpi"><div class="label">最新实际数据日</div><div class="value" id="latestDate"></div></div>
-      <div class="kpi"><div class="label">最强回补日</div><div class="value" id="strongestDate"></div></div>
-      <div class="kpi"><div class="label">最强均值</div><div class="value" id="strongestAvg"></div></div>
-      <div class="kpi"><div class="label">近7日均值</div><div class="value" id="recentAvg"></div></div>
-      <div class="kpi"><div class="label">CSV数量</div><div class="value" id="sourceCount"></div></div>
+      <div class="kpi"><div class="label">更新截止日</div><div class="value" id="latestDate"></div></div>
+      <div class="kpi"><div class="label">强回补定位日</div><div class="value" id="strongestDate"></div></div>
+      <div class="kpi"><div class="label">强回补强度：对角线均值</div><div class="value" id="strongestAvg"></div></div>
+      <div class="kpi"><div class="label">当前判断基线：近7日均值</div><div class="value" id="recentAvg"></div></div>
+      <div class="kpi"><div class="label">样本快照数</div><div class="value" id="sourceCount"></div></div>
     </div>
 
     <section>
-      <h2>主站活动日历（5-6月重点版）</h2>
+      <h2>主站活动日历｜查活动窗口</h2>
       <div id="mainSiteCalendar"></div>
-      <div class="note">按你标注的重点活动整理。这里是同事查阅用的结构化排期，后续可继续和回补日强度、点击日成熟曲线联动。</div>
     </section>
 
     <div class="grid">
       <section>
-        <h2>点击日核销率成熟热力图</h2>
+        <h2>点击日成熟｜横向看 D0-D14</h2>
         <div id="heatmap" class="chart"></div>
-        <div class="note">颜色表示核销率百分比。每行是点击日，每列是成熟天数 D0-D14，共 15 天核销窗口。</div>
       </section>
       <div>
         <section>
@@ -750,9 +747,8 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     </div>
 
     <section>
-      <h2>回补强度与活动日历</h2>
+      <h2>回补日强度｜对角线看实际回补日</h2>
       <div id="eventTimeline" class="chart"></div>
-      <div class="note">柱状为回补日对角线边际均值；背景区间标记平台活动、推广激励和重点营销活动。</div>
     </section>
 
     <section>
