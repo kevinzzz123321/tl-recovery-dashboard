@@ -968,20 +968,78 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     }}
     .prediction-grid {{
       display: grid;
-      grid-template-columns: 1.15fr 1fr;
-      gap: 16px;
+      grid-template-columns: 1fr;
+      gap: 14px;
       align-items: start;
     }}
+    .prediction-card {{ min-width: 0; }}
     .prediction-card h3 {{
       margin: 0 0 8px;
       font-size: 14px;
       font-weight: 720;
     }}
-    .prediction-card table td:last-child {{
-      white-space: normal;
-      min-width: 220px;
-      line-height: 1.45;
+    .table-scroll {{
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid #edf0f5;
+      border-radius: 7px;
     }}
+    .table-scroll table {{
+      min-width: 100%;
+    }}
+    #clickForecastTable {{
+      width: 100%;
+      table-layout: fixed;
+    }}
+    #futureForecastTable {{
+      width: 100%;
+      table-layout: fixed;
+    }}
+    #activityImpactTable {{
+      width: 100%;
+      table-layout: fixed;
+    }}
+    #clickForecastTable th,
+    #futureForecastTable th,
+    #activityImpactTable th {{
+      white-space: normal;
+      line-height: 1.35;
+    }}
+    #clickForecastTable th:nth-child(7),
+    #clickForecastTable td:nth-child(7),
+    #futureForecastTable th:nth-child(6),
+    #futureForecastTable td:nth-child(6),
+    #futureForecastTable th:nth-child(7),
+    #futureForecastTable td:nth-child(7),
+    #activityImpactTable th:nth-child(1),
+    #activityImpactTable td:nth-child(1) {{
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.45;
+      text-align: left;
+    }}
+    #clickForecastTable th:nth-child(1), #clickForecastTable td:nth-child(1) {{ width: 7%; }}
+    #clickForecastTable th:nth-child(2), #clickForecastTable td:nth-child(2) {{ width: 8%; }}
+    #clickForecastTable th:nth-child(3), #clickForecastTable td:nth-child(3),
+    #clickForecastTable th:nth-child(4), #clickForecastTable td:nth-child(4),
+    #clickForecastTable th:nth-child(5), #clickForecastTable td:nth-child(5) {{ width: 10%; }}
+    #clickForecastTable th:nth-child(6), #clickForecastTable td:nth-child(6) {{ width: 7%; }}
+    #clickForecastTable th:nth-child(7), #clickForecastTable td:nth-child(7) {{ width: 48%; }}
+    #futureForecastTable th:nth-child(1), #futureForecastTable td:nth-child(1) {{ width: 7%; }}
+    #futureForecastTable th:nth-child(2), #futureForecastTable td:nth-child(2),
+    #futureForecastTable th:nth-child(3), #futureForecastTable td:nth-child(3) {{ width: 9%; }}
+    #futureForecastTable th:nth-child(4), #futureForecastTable td:nth-child(4) {{ width: 7%; }}
+    #futureForecastTable th:nth-child(5), #futureForecastTable td:nth-child(5) {{ width: 8%; }}
+    #futureForecastTable th:nth-child(6), #futureForecastTable td:nth-child(6) {{ width: 23%; }}
+    #futureForecastTable th:nth-child(7), #futureForecastTable td:nth-child(7) {{ width: 31%; }}
+    #futureForecastTable th:nth-child(8), #futureForecastTable td:nth-child(8) {{ width: 6%; }}
+    #activityImpactTable th:nth-child(1), #activityImpactTable td:nth-child(1) {{ width: 26%; }}
+    #activityImpactTable th:nth-child(2), #activityImpactTable td:nth-child(2) {{ width: 14%; }}
+    #activityImpactTable th:nth-child(3), #activityImpactTable td:nth-child(3),
+    #activityImpactTable th:nth-child(4), #activityImpactTable td:nth-child(4) {{ width: 14%; }}
+    #activityImpactTable th:nth-child(5), #activityImpactTable td:nth-child(5),
+    #activityImpactTable th:nth-child(6), #activityImpactTable td:nth-child(6),
+    #activityImpactTable th:nth-child(7), #activityImpactTable td:nth-child(7) {{ width: 8%; }}
     section {{
       background: var(--panel);
       border: 1px solid var(--line);
@@ -1116,16 +1174,16 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       <div class="prediction-grid">
         <div class="prediction-card">
           <h3>点击日成熟预测｜最终会到多少</h3>
-          <table id="clickForecastTable"></table>
+          <div class="table-scroll"><table id="clickForecastTable"></table></div>
         </div>
         <div class="prediction-card">
           <h3>未来7天回补预测｜哪天可能集中回补</h3>
-          <table id="futureForecastTable"></table>
+          <div class="table-scroll"><table id="futureForecastTable"></table></div>
         </div>
       </div>
       <div class="prediction-card" style="margin-top:14px">
         <h3>活动影响验证｜活动期是否放大回补</h3>
-        <table id="activityImpactTable"></table>
+        <div class="table-scroll"><table id="activityImpactTable"></table></div>
       </div>
       <div class="note">预测层使用核销率口径：点击日成熟预测看 D0-D14 横向曲线，未来回补预测看未来实际回补日的对角线新增核销率。第一版先不区分会场。</div>
     </section>
