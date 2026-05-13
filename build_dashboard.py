@@ -857,13 +857,14 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       visualMap: {{
         min: 0,
         max: 55,
+        dimension: 2,
         calculable: true,
         orient: "horizontal",
         left: "center",
         bottom: 16,
         inRange: {{ color: ["#f7fbff", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"] }}
       }},
-      series: [{{ type: "heatmap", data: payload.heatmap.data, label: {{ show: false }}, emphasis: {{ itemStyle: {{ shadowBlur: 4, shadowColor: "rgba(0,0,0,.25)" }} }} }}]
+      series: [{{ type: "heatmap", encode: {{ x: 0, y: 1, value: 2 }}, data: payload.heatmap.data, label: {{ show: false }}, emphasis: {{ itemStyle: {{ shadowBlur: 4, shadowColor: "rgba(0,0,0,.25)" }} }} }}]
     }});
 
     const strength = payload.strength;
