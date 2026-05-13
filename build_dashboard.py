@@ -290,6 +290,60 @@ def add_event_features(strength: pd.DataFrame, event: pd.DataFrame) -> pd.DataFr
     return pd.DataFrame(rows)
 
 
+def build_event_bands(strength: pd.DataFrame, event: pd.DataFrame) -> pd.DataFrame:
+    """Build non-overlapping activity bands for the timeline chart."""
+    if strength.empty:
+        return pd.DataFrame(columns=["start_date", "end_date", "start_label", "end_label", "label"])
+
+    date_rows = []
+    visible_dates = sorted(pd.to_datetime(strength["recovery_date"]).dropna().unique())
+    key_events = event[event["event_type"].isin(["平台活动", "推广激励", "618节奏"])].copy()
+
+    for date in visible_dates:
+        active = key_events[(key_events["start_date"] <= date) & (key_events["end_date"] >= date)]
+        label = ""
+        if not active.empty:
+            primary = active[active["event_type"].isin(["平台活动", "618节奏"])]["event_name"].tolist()
+            has_incentive = (active["event_type"] == "推广激励").any()
+            parts = primary[:1]
+            if has_incentive:
+                parts.append("推广激励")
+            if not parts:
+                parts = active["event_name"].tolist()[:1]
+            label = " + ".join(parts)
+        date_rows.append({"date": pd.Timestamp(date), "label": label})
+
+    bands = []
+    current_label = None
+    start_date = None
+    previous_date = None
+    for row in date_rows:
+        label = row["label"]
+        date = row["date"]
+        if not label:
+            if current_label:
+                bands.append({"start_date": start_date, "end_date": previous_date, "label": current_label})
+            current_label = None
+            start_date = None
+            previous_date = None
+            continue
+        if label != current_label:
+            if current_label:
+                bands.append({"start_date": start_date, "end_date": previous_date, "label": current_label})
+            current_label = label
+            start_date = date
+        previous_date = date
+    if current_label:
+        bands.append({"start_date": start_date, "end_date": previous_date, "label": current_label})
+
+    result = pd.DataFrame(bands)
+    if result.empty:
+        return pd.DataFrame(columns=["start_date", "end_date", "start_label", "end_label", "label"])
+    result["start_label"] = result["start_date"].dt.strftime("%m-%d")
+    result["end_label"] = result["end_date"].dt.strftime("%m-%d")
+    return result
+
+
 def save_processed(
     base: pd.DataFrame,
     files: pd.DataFrame,
@@ -343,6 +397,7 @@ def build_dashboard_payload(
     event_plot = event.copy()
     event_plot["start_label"] = event_plot["start_date"].dt.strftime("%m-%d")
     event_plot["end_label"] = event_plot["end_date"].dt.strftime("%m-%d")
+    event_bands = build_event_bands(strength, event)
 
     strongest_date = strongest["recovery_date"]
     strongest_detail = detail[detail["recovery_date"] == strongest_date].copy()
@@ -382,6 +437,7 @@ def build_dashboard_payload(
         "events": records_for_json(
             event_plot[["event_type", "event_name", "start_date", "end_date", "start_label", "end_label", "event_level"]]
         ),
+        "eventBands": records_for_json(event_bands[["start_date", "end_date", "start_label", "end_label", "label"]]),
         "strongestDetail": records_for_json(
             strongest_detail[
                 [
@@ -616,33 +672,37 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     }});
 
     const eventTimeline = echarts.init(document.getElementById("eventTimeline"));
-    const visibleStart = strength.length ? strength[0].recovery_date : null;
-    const visibleEnd = strength.length ? strength[strength.length - 1].recovery_date : null;
-    const toLabel = d => d ? d.slice(5) : d;
-    const eventAreas = payload.events
-      .filter(e => ["平台活动", "推广激励", "618节奏"].includes(e.event_type))
-      .map(e => {{
-        const start = visibleStart && e.start_date < visibleStart ? visibleStart : e.start_date;
-        const end = visibleEnd && e.end_date > visibleEnd ? visibleEnd : e.end_date;
-        if (!visibleStart || !visibleEnd || end < visibleStart || start > visibleEnd) return null;
-        return [{{ name: e.event_name, xAxis: toLabel(start) }}, {{ xAxis: toLabel(end) }}];
-      }})
-      .filter(Boolean);
+    const eventAreas = payload.eventBands.map(e => [
+      {{ name: e.label, xAxis: e.start_label }},
+      {{ xAxis: e.end_label }}
+    ]);
     eventTimeline.setOption({{
       tooltip: {{ trigger: "axis", formatter: params => {{
         const idx = params[0].dataIndex;
         const row = strength[idx];
         return `${{row.date_label}}<br/>回补强度：${{row.diagonal_marginal_avg_pp.toFixed(2)}}pp<br/>活动：${{row.active_events || "无"}}`;
       }} }},
-      grid: {{ left: 54, right: 28, top: 20, bottom: 48 }},
+      grid: {{ left: 60, right: 28, top: 64, bottom: 52 }},
       xAxis: {{ type: "category", data: dates, axisLabel: {{ rotate: 45 }} }},
-      yAxis: {{ type: "value", name: "pp" }},
+      yAxis: {{ type: "value", axisLabel: {{ formatter: "{{value}}pp" }} }},
       series: [{{
         name: "回补强度",
         type: "bar",
         data: avg,
         itemStyle: {{ color: "#2563eb" }},
-        markArea: {{ itemStyle: {{ color: "rgba(249,115,22,0.13)" }}, data: eventAreas }}
+        markArea: {{
+          silent: true,
+          itemStyle: {{ color: "rgba(249,115,22,0.13)" }},
+          label: {{
+            position: "insideTop",
+            distance: 8,
+            color: "#344054",
+            fontSize: 12,
+            overflow: "truncate",
+            width: 180
+          }},
+          data: eventAreas
+        }}
       }}, {{
         name: "趋势",
         type: "line",
