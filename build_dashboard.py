@@ -719,8 +719,8 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     <div class="kpis">
       <div class="kpi"><div class="label">更新截止日</div><div class="value" id="latestDate"></div></div>
       <div class="kpi"><div class="label">强回补定位日</div><div class="value" id="strongestDate"></div></div>
-      <div class="kpi"><div class="label">强回补强度：对角线均值</div><div class="value" id="strongestAvg"></div></div>
-      <div class="kpi"><div class="label">当前判断基线：近7日均值</div><div class="value" id="recentAvg"></div></div>
+      <div class="kpi"><div class="label">最强日平均新增核销率</div><div class="value" id="strongestAvg"></div></div>
+      <div class="kpi"><div class="label">近7天平均新增核销率</div><div class="value" id="recentAvg"></div></div>
       <div class="kpi"><div class="label">样本快照数</div><div class="value" id="sourceCount"></div></div>
     </div>
 
@@ -736,18 +736,18 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       </section>
       <div>
         <section>
-          <h2>回补日强度</h2>
+          <h2>每日回补强度</h2>
           <div id="strengthBar" class="chart"></div>
         </section>
         <section>
-          <h2>最强回补日拆解</h2>
+          <h2>最强回补日来源</h2>
           <table id="detailTable"></table>
         </section>
       </div>
     </div>
 
     <section>
-      <h2>回补日强度｜对角线看实际回补日</h2>
+      <h2>每日回补走势｜看哪天回补最强</h2>
       <div id="eventTimeline" class="chart"></div>
     </section>
 
@@ -872,7 +872,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       tooltip: {{ trigger: "axis", formatter: params => {{
         const idx = params[0].dataIndex;
         const row = strength[idx];
-        return `${{row.date_label}}<br/>边际均值：${{row.diagonal_marginal_avg_pp.toFixed(2)}}pp<br/>边际合计：${{row.diagonal_marginal_sum_pp.toFixed(2)}}pp<br/>活动：${{row.active_events || "无"}}`;
+        return `${{row.date_label}}<br/>平均新增核销率：${{row.diagonal_marginal_avg_pp.toFixed(2)}}pp<br/>合计新增核销率：${{row.diagonal_marginal_sum_pp.toFixed(2)}}pp<br/>活动：${{row.active_events || "无"}}`;
       }} }},
       grid: {{ left: 52, right: 18, top: 20, bottom: 46 }},
       xAxis: {{ type: "category", data: dates, axisLabel: {{ rotate: 45 }} }},
@@ -880,7 +880,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       series: [{{
         type: "bar",
         data: strength.map(d => ({{ value: d.diagonal_marginal_avg_pp, itemStyle: {{ color: levelColor(d.strength_level) }} }})),
-        markLine: {{ data: [{{ type: "average", name: "均值" }}], lineStyle: {{ color: "#475467" }} }}
+        markLine: {{ data: [{{ type: "average", name: "平均线" }}], lineStyle: {{ color: "#475467" }} }}
       }}]
     }});
 
@@ -893,7 +893,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       tooltip: {{ trigger: "axis", formatter: params => {{
         const idx = params[0].dataIndex;
         const row = strength[idx];
-        return `${{row.date_label}}<br/>回补强度：${{row.diagonal_marginal_avg_pp.toFixed(2)}}pp<br/>活动：${{row.active_events || "无"}}`;
+        return `${{row.date_label}}<br/>平均新增核销率：${{row.diagonal_marginal_avg_pp.toFixed(2)}}pp<br/>活动：${{row.active_events || "无"}}`;
       }} }},
       grid: {{ left: 60, right: 28, top: 64, bottom: 52 }},
       xAxis: {{ type: "category", data: dates, axisLabel: {{ rotate: 45 }} }},
@@ -937,7 +937,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     }}
 
     renderTable("detailTable",
-      ["点击日", "lag", "前档", "当前", "边际", "占比"],
+      ["点击日", "成熟天数", "前一天核销率", "当天核销率", "当天新增", "贡献占比"],
       payload.strongestDetail.map(r => [
         shortDate(r.click_date),
         "D" + r.lag_days,
@@ -949,7 +949,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     );
 
     renderTable("rankTable",
-      ["回补日", "均值", "合计", "最大单日", "等级", "活动"],
+      ["回补日", "平均新增", "合计新增", "单日最大新增", "强度等级", "关联活动"],
       payload.topRecoveryDays.map(r => [
         r.recovery_date,
         fmtPp(r.diagonal_marginal_avg_pp),

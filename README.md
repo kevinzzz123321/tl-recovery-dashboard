@@ -11,7 +11,7 @@
 - 红包核销率：`红包使用量 / 红包量`
 - 点击日成熟：横向看同一点击日的 `D0, D1, D2...`
 - 淘联核销窗口：按 `D0-D14` 展示，共 15 个自然日
-- 回补日强度：按对角线计算边际提升，`Dk核销率 - D(k-1)核销率`
+- 回补日强度：同一实际回补日的当天新增核销率，`Dk核销率 - D(k-1)核销率`
 
 第一版先不区分会场，统一看全局核销率。
 
@@ -28,7 +28,7 @@
 - `data_processed/base_snapshot_long.csv`：清洗后的快照长表
 - `data_processed/day_lag_rate_summary.csv`：点击日 x D天数的核销率汇总
 - `data_processed/click_day_maturity_matrix.csv`：点击日成熟矩阵
-- `data_processed/diagonal_recovery_detail.csv`：对角线边际回补明细
+- `data_processed/diagonal_recovery_detail.csv`：每天新增核销率来源明细
 - `data_processed/recovery_day_strength.csv`：实际回补日强度排行
 - `data_processed/event_calendar.csv`：活动日历结构化表
 - `data_processed/main_site_calendar.csv`：5-6月主站重点活动日历，来自人工标注截图整理
