@@ -28,6 +28,7 @@ PROCESSED_DIR = BASE_DIR / "data_processed"
 DASHBOARD_DIR = BASE_DIR / "dashboard"
 ASSETS_DIR = DASHBOARD_DIR / "assets"
 DOCS_DIR = BASE_DIR / "docs"
+# 淘联红包核销窗口按 15 个自然日展示：D0-D14。
 MAX_LAG = 14
 
 
@@ -380,7 +381,7 @@ def build_dashboard_payload(
     heatmap_rows = matrix[matrix["click_date"].notna()].copy()
     heatmap_rows = heatmap_rows.tail(45)
     y_dates = [d.strftime("%m-%d") for d in heatmap_rows["click_date"]]
-    x_lags = [f"D{lag}" for lag in range(0, min(MAX_LAG, 12) + 1)]
+    x_lags = [f"D{lag}" for lag in range(0, MAX_LAG + 1)]
     heatmap_data = []
     for yi, (_, row) in enumerate(heatmap_rows.iterrows()):
         for xi, lag_label in enumerate(x_lags):
@@ -539,7 +540,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       font-weight: 720;
     }}
     .chart {{ width: 100%; height: 420px; }}
-    #heatmap {{ height: 560px; }}
+    #heatmap {{ height: 600px; }}
     table {{
       width: 100%;
       border-collapse: collapse;
@@ -585,7 +586,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
       <section>
         <h2>点击日核销率成熟热力图</h2>
         <div id="heatmap" class="chart"></div>
-        <div class="note">颜色表示核销率百分比。每行是点击日，每列是成熟天数 D0-D12。</div>
+        <div class="note">颜色表示核销率百分比。每行是点击日，每列是成熟天数 D0-D14，共 15 天核销窗口。</div>
       </section>
       <div>
         <section>
@@ -635,8 +636,8 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
     const heatmap = echarts.init(document.getElementById("heatmap"));
     heatmap.setOption({{
       tooltip: {{ formatter: p => `${{payload.heatmap.y[p.value[1]]}} ${{payload.heatmap.x[p.value[0]]}}<br/>核销率 ${{p.value[2].toFixed(2)}}%` }},
-      grid: {{ left: 62, right: 20, top: 20, bottom: 42 }},
-      xAxis: {{ type: "category", data: payload.heatmap.x, splitArea: {{ show: true }} }},
+      grid: {{ left: 62, right: 20, top: 20, bottom: 88 }},
+      xAxis: {{ type: "category", data: payload.heatmap.x, splitArea: {{ show: true }}, axisLabel: {{ margin: 14 }} }},
       yAxis: {{ type: "category", data: payload.heatmap.y, splitArea: {{ show: true }} }},
       visualMap: {{
         min: 0,
@@ -644,7 +645,7 @@ def dashboard_html(payload: dict[str, Any], data_link_prefix: str = "../data_pro
         calculable: true,
         orient: "horizontal",
         left: "center",
-        bottom: 0,
+        bottom: 16,
         inRange: {{ color: ["#f7fbff", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"] }}
       }},
       series: [{{ type: "heatmap", data: payload.heatmap.data, label: {{ show: false }}, emphasis: {{ itemStyle: {{ shadowBlur: 4, shadowColor: "rgba(0,0,0,.25)" }} }} }}]
